@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>דיג אשדוד — תחזית ומידע לדייג</title>
+  <title>דיג חופי ישראל — תחזית ומידע לדייג</title>
   <meta name="theme-color" content="#0b1d2e">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
@@ -12,12 +12,15 @@
 </head>
 <body>
   <header class="header">
-    <h1>🎣 דיג אשדוד</h1>
-    <p class="subtitle">תחזית ים ומזג אוויר אמיתית + המלצות דיג — מתעדכן מ־Open-Meteo</p>
+    <h1>🎣 דיג חופי ישראל</h1>
+    <p class="subtitle">תחזית ים ומזג אוויר אמיתית + המלצות דיג לכל מישור החוף — מתעדכן מ־Open-Meteo</p>
     <p id="last-updated" class="updated"></p>
   </header>
 
-  <nav class="spot-tabs" id="spot-tabs"></nav>
+  <nav class="location-picker">
+    <select id="city-select" class="city-select" title="בחירת עיר"></select>
+    <div class="spot-tabs" id="spot-tabs"></div>
+  </nav>
 
   <main id="main">
     <div id="loading" class="loading">

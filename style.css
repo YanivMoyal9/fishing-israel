@@ -30,9 +30,10 @@ body {
 .subtitle { color: var(--muted); margin-top: 6px; font-size: 0.95rem; }
 .updated { color: var(--muted); font-size: 0.8rem; margin-top: 4px; }
 
-.spot-tabs {
+.location-picker {
   display: flex;
   justify-content: center;
+  align-items: center;
   gap: 10px;
   padding: 14px 16px;
   flex-wrap: wrap;
@@ -41,6 +42,25 @@ body {
   background: rgba(11, 29, 46, 0.95);
   backdrop-filter: blur(6px);
   z-index: 10;
+}
+
+.city-select {
+  background: var(--card);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  padding: 10px 16px;
+  border-radius: 24px;
+  font-size: 1rem;
+  font-family: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.spot-tabs {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .spot-tab {

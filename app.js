@@ -1,7 +1,26 @@
 // ===== מצב גלובלי =====
-let currentSpot = SPOTS[0];
+const LOC_KEY = "fishing-location";
+
+function restoreLocation() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LOC_KEY) || "null");
+    if (saved) {
+      const region = REGIONS.find(r => r.city === saved.city);
+      const spot = region?.spots.find(s => s.id === saved.spotId);
+      if (region && spot) return { region, spot };
+    }
+  } catch (e) { /* בחירה שמורה לא תקינה — נופלים לברירת המחדל */ }
+  const region = REGIONS.find(r => r.city === "אשדוד") || REGIONS[0];
+  return { region, spot: region.spots[0] };
+}
+
+let { region: currentRegion, spot: currentSpot } = restoreLocation();
 let weatherData = null;
 let marineData = null;
+
+function saveLocation() {
+  localStorage.setItem(LOC_KEY, JSON.stringify({ city: currentRegion.city, spotId: currentSpot.id }));
+}
 
 // ===== עזרים =====
 const $ = id => document.getElementById(id);
@@ -132,14 +151,25 @@ function buildRecommendations(spot, wave, wind, month, pressureTrend) {
 }
 
 // ===== רינדור =====
-function renderTabs() {
+function renderLocationPicker() {
+  const select = $("city-select");
+  select.innerHTML = REGIONS.map(r =>
+    `<option value="${r.city}"${r.city === currentRegion.city ? " selected" : ""}>📍 ${r.city}</option>`
+  ).join("");
+  select.onchange = () => {
+    currentRegion = REGIONS.find(r => r.city === select.value);
+    currentSpot = currentRegion.spots[0];
+    saveLocation();
+    init();
+  };
+
   const nav = $("spot-tabs");
   nav.innerHTML = "";
-  SPOTS.forEach(spot => {
+  currentRegion.spots.forEach(spot => {
     const btn = document.createElement("button");
     btn.className = "spot-tab" + (spot.id === currentSpot.id ? " active" : "");
     btn.textContent = spot.name;
-    btn.onclick = () => { currentSpot = spot; init(); };
+    btn.onclick = () => { currentSpot = spot; saveLocation(); init(); };
     nav.appendChild(btn);
   });
 }
@@ -244,7 +274,7 @@ function render() {
   $("fish-in-season").innerHTML = inSeason.map(fishCard).join("") || "<p class='season-hint'>אין דגים עונתיים מובהקים כרגע בנקודה זו.</p>";
   $("fish-off-season").innerHTML = offSeason.map(fishCard).join("");
 
-  $("last-updated").textContent = `עודכן: ${now.toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" })} · ${currentSpot.name}`;
+  $("last-updated").textContent = `עודכן: ${now.toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" })} · ${currentRegion.city} · ${currentSpot.name}`;
 }
 
 // ===== מדריך שיטות דיג ובובות =====
@@ -341,7 +371,7 @@ async function askAI() {
     .map(f => f.name).join(", ");
 
   const conditions =
-    `נקודה: ${currentSpot.name} (${currentSpot.note})\n` +
+    `מיקום: ${currentRegion.city} — ${currentSpot.name} (${currentSpot.note})\n` +
     `גלים עכשיו: ${m.current.wave_height} מ', תדירות ${m.current.wave_period} שנ', מקסימום היום: ${m.daily.wave_height_max[0]} מ'\n` +
     `רוח: ${Math.round(w.current.wind_speed_10m)} קמ"ש ${windDirText(w.current.wind_direction_10m)}, משבים ${Math.round(w.current.wind_gusts_10m)}\n` +
     `טמפ' אוויר: ${Math.round(w.current.temperature_2m)}°, טמפ' מים: ${Math.round(m.current.sea_surface_temperature)}°\n` +
@@ -359,7 +389,7 @@ async function askAI() {
       body: JSON.stringify({
         model: CONFIG.AI_MODEL,
         max_tokens: 1024,
-        system: "אתה מדריך דיג ותיק בחופי אשדוד, ישראל. ענה בעברית, קצר וממוקד: 1) האם כדאי לצאת היום ומתי (שעות), 2) איזה דג לכוון אליו, 3) שיטה ופיתיון מומלצים, 4) טיפ אחד לתנאים הספציפיים. בלי הקדמות.",
+        system: "אתה מדריך דיג ותיק בחופי הים התיכון של ישראל. ענה בעברית, קצר וממוקד: 1) האם כדאי לצאת היום ומתי (שעות), 2) איזה דג לכוון אליו, 3) שיטה ופיתיון מומלצים, 4) טיפ אחד לתנאים הספציפיים. בלי הקדמות.",
         messages: [{ role: "user", content: `אלה התנאים עכשיו:\n${conditions}\n\nמה עצתך להיום?` }]
       })
     });
@@ -474,7 +504,7 @@ function setupCatchForm() {
       weight: parseFloat($("catch-weight").value) || null,
       method: $("catch-method").value || null,
       notes: $("catch-notes").value || null,
-      spot: currentSpot.name,
+      spot: `${currentRegion.city} — ${currentSpot.name}`,
       caught_at: new Date().toISOString()
     });
     e.target.reset();
@@ -486,7 +516,7 @@ function setupCatchForm() {
 let uiWired = false;
 
 async function init() {
-  renderTabs();
+  renderLocationPicker();
   $("loading").classList.remove("hidden");
   $("error").classList.add("hidden");
   $("content").classList.add("hidden");
