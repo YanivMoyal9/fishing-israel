@@ -247,6 +247,82 @@ function render() {
   $("last-updated").textContent = `עודכן: ${now.toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" })} · ${currentSpot.name}`;
 }
 
+// ===== מדריך שיטות דיג ובובות =====
+// מחזיר true אם השיטה מתאימה לתנאים הנוכחיים בנקודה שנבחרה
+function methodRecommended(method, waveMax, windMax, month, spotType) {
+  switch (method.id) {
+    case "surfcasting": return spotType === "beach" && waveMax >= 0.4 && waveMax <= 1.6 && windMax < 35;
+    case "spinning":    return waveMax <= 1.8 && windMax < 35;
+    case "trolling":    return waveMax <= 1.0 && windMax < 25;   // יציאה בסירה — ים נוח
+    case "jigging":     return waveMax <= 1.2 && windMax < 25;
+    case "lrf":         return waveMax <= 0.6 && (spotType === "marina" || spotType === "port");
+    case "float":       return spotType === "marina" || (spotType === "port" && waveMax <= 1.2);
+    case "bottom":      return (spotType === "port" || spotType === "marina") && waveMax <= 1.8;
+    case "livebait":    return waveMax <= 1.8;
+    default: return false;
+  }
+}
+
+// חודשי שיא לבובות + תנאים מיוחדים
+function lureRecommended(lure, month, waveMax) {
+  if (lure.name.startsWith("פופר") || lure.name.startsWith("סטיקבייט")) return [9,10,11,12].includes(month);
+  if (lure.name.startsWith("מינו")) return [11,12,1,2,3].includes(month);
+  if (lure.name.startsWith("כף")) return [10,11,12,1].includes(month);
+  if (lure.name.startsWith("שור")) return [9,10,11,12,1].includes(month);
+  if (lure.name.startsWith("וויברציה")) return waveMax >= 1.0;  // מים עכורים
+  return false;
+}
+
+function renderGuide() {
+  const month = new Date().getMonth() + 1;
+  const waveMax = marineData.daily.wave_height_max[0];
+  const windMax = weatherData.daily.wind_speed_10m_max[0];
+
+  $("guide-hint").textContent =
+    'שיטות עם סימון "✓ מתאים עכשיו" נבחרו לפי הגלים, הרוח והעונה בנקודה שבחרת. שיטות סירה (🚤) דורשות יציאה מהמרינה.';
+
+  $("methods-panel").innerHTML = METHODS.map(m => {
+    const rec = methodRecommended(m, waveMax, windMax, month, currentSpot.type);
+    return `<div class="method-card${rec ? " recommended" : ""}">
+      <h3>${m.emoji} ${m.name}
+        ${rec ? '<span class="badge">✓ מתאים עכשיו</span>' : ""}
+        ${m.where === "boat" ? '<span class="badge boat">🚤 מסירה/קיאק</span>' : ""}
+        ${m.where === "both" ? '<span class="badge boat">חוף + סירה</span>' : ""}
+      </h3>
+      <p>${m.desc}<br>
+      <strong>ציוד:</strong> ${m.gear}<br>
+      <strong>פיתיון:</strong> ${m.bait}<br>
+      <strong>דגי מטרה:</strong> ${m.fish}<br>
+      <strong>מתי ואיפה:</strong> ${m.when}</p>
+    </div>`;
+  }).join("");
+
+  $("lures-panel").innerHTML = LURES.map(l => {
+    const rec = lureRecommended(l, month, waveMax);
+    return `<div class="method-card${rec ? " recommended" : ""}">
+      <h3>${l.emoji} ${l.name}
+        ${rec ? '<span class="badge">✓ בעונה עכשיו</span>' : ""}
+        <span class="badge boat">${l.depth}</span>
+      </h3>
+      <p>${l.desc}<br>
+      <strong>איך עובדים איתה:</strong> ${l.work}<br>
+      <strong>דגי מטרה:</strong> ${l.fish}<br>
+      <strong>טיפ:</strong> ${l.tip}</p>
+    </div>`;
+  }).join("");
+}
+
+function setupGuideTabs() {
+  const show = which => {
+    $("methods-panel").classList.toggle("hidden", which !== "methods");
+    $("lures-panel").classList.toggle("hidden", which !== "lures");
+    $("tab-methods").classList.toggle("active", which === "methods");
+    $("tab-lures").classList.toggle("active", which === "lures");
+  };
+  $("tab-methods").onclick = () => show("methods");
+  $("tab-lures").onclick = () => show("lures");
+}
+
 // ===== עצת דייג AI (דרך Proxy — המפתח נשאר בשרת) =====
 function aiConfigured() {
   return typeof CONFIG !== "undefined" && CONFIG.AI_PROXY_URL;
@@ -425,7 +501,9 @@ async function init() {
       uiWired = true;
       $("ai-button").onclick = askAI;
       setupCatchForm();
+      setupGuideTabs();
     }
+    renderGuide();
     renderCatchLog();
     $("loading").classList.add("hidden");
     $("content").classList.remove("hidden");

@@ -211,6 +211,58 @@ main { max-width: 900px; margin: 0 auto; padding: 8px 16px 40px; }
 
 a { color: var(--accent-2); }
 
+/* Methods & lures guide */
+.guide-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
+.guide-tab {
+  background: var(--card-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 18px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+.guide-tab.active {
+  background: var(--accent);
+  color: #06202f;
+  font-weight: 700;
+  border-color: var(--accent);
+}
+
+.method-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.method-card {
+  background: var(--card-2);
+  border-radius: 10px;
+  padding: 14px;
+  border: 1px solid transparent;
+}
+.method-card.recommended { border-color: var(--good); }
+.method-card h3 {
+  font-size: 1rem;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.method-card .badge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--good);
+  color: #06202f;
+}
+.method-card .badge.boat { background: var(--border); color: var(--muted); }
+.method-card p { font-size: 0.85rem; color: var(--muted); line-height: 1.7; margin-top: 4px; }
+.method-card p strong { color: var(--text); }
+
 /* Buttons */
 .primary-btn {
   background: var(--accent);
