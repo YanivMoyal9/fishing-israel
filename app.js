@@ -582,6 +582,7 @@ function setupCatchForm() {
 let uiWired = false;
 
 async function init() {
+  $("app-version").textContent = APP_VERSION;
   renderLocationPicker();
   $("loading").classList.remove("hidden");
   $("error").classList.add("hidden");

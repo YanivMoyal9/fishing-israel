@@ -1,5 +1,7 @@
-// Service Worker — עבודה לא מקוונת + התקנה כאפליקציה
-const CACHE_NAME = "fishing-israel-v4";
+// Service Worker — גרסה חדשה נטענת מיד, המטמון משמש רק במצב לא מקוון
+// APP_VERSION מוגדר גם ב-data.js — לעדכן את שניהם יחד בכל שינוי!
+const VERSION = "1.2.0";
+const CACHE_NAME = `fishing-israel-${VERSION}`;
 const APP_SHELL = [
   "./",
   "./index.html",
@@ -26,24 +28,31 @@ self.addEventListener("activate", event => {
   );
 });
 
+self.addEventListener("message", event => {
+  if (event.data === "SKIP_WAITING") self.skipWaiting();
+});
+
 self.addEventListener("fetch", event => {
   const url = new URL(event.request.url);
 
-  // בקשות API (מזג אוויר, Supabase, AI) — תמיד מהרשת, בלי לשמור במטמון
+  // בקשות חיצוניות (מזג אוויר, Supabase, AI) — ישירות לרשת
   if (url.origin !== self.location.origin) return;
   if (event.request.method !== "GET") return;
 
-  // קבצי האפליקציה — מהמטמון קודם, עדכון ברקע
+  // קבצי האפליקציה — רשת קודם (תמיד טרי), מטמון רק כשאין אינטרנט
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      const network = fetch(event.request).then(response => {
+    fetch(event.request)
+      .then(response => {
         if (response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
         }
         return response;
-      }).catch(() => cached);
-      return cached || network;
-    })
+      })
+      .catch(() =>
+        caches.match(event.request).then(cached =>
+          cached || (event.request.mode === "navigate" ? caches.match("./index.html") : undefined)
+        )
+      )
   );
 });

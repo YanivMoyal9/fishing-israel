@@ -141,14 +141,38 @@
 
   <footer class="footer">
     <p>נתוני מזג אוויר וים: <a href="https://open-meteo.com/" target="_blank">Open-Meteo</a> (חינמי, מתעדכן כל שעה). המלצות הדיג הן כלליות ואינן תחליף לשיקול דעת בשטח.</p>
+    <p>גרסה <span id="app-version">–</span></p>
   </footer>
 
   <script src="data.js"></script>
   <script src="config.js"></script>
   <script src="app.js"></script>
   <script>
+    // רישום Service Worker עם עדכון אוטומטי מהיר:
+    // 1. בכל פתיחה/חזרה לאפליקציה נבדקת גרסה חדשה
+    // 2. גרסה חדשה מותקנת מיד (skipWaiting) והדף מתרענן אוטומטית פעם אחת
     if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("sw.js");
+      navigator.serviceWorker.register("sw.js").then(reg => {
+        reg.update();
+        document.addEventListener("visibilitychange", () => {
+          if (!document.hidden) reg.update();
+        });
+        setInterval(() => reg.update(), 30 * 60 * 1000);
+        reg.addEventListener("updatefound", () => {
+          const nw = reg.installing;
+          if (nw) nw.addEventListener("statechange", () => {
+            if (nw.state === "installed" && navigator.serviceWorker.controller) {
+              nw.postMessage("SKIP_WAITING");
+            }
+          });
+        });
+      });
+      let refreshed = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (refreshed) return;
+        refreshed = true;
+        location.reload();
+      });
     }
   </script>
 </body>
