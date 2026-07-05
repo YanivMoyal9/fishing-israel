@@ -22,6 +22,10 @@ function saveLocation() {
   localStorage.setItem(LOC_KEY, JSON.stringify({ city: currentRegion.city, spotId: currentSpot.id }));
 }
 
+function isFreshwater() {
+  return currentSpot.type === "lake";
+}
+
 // ===== עזרים =====
 const $ = id => document.getElementById(id);
 
@@ -54,6 +58,15 @@ async function fetchAll(spot) {
     `&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,weather_code` +
     `&timezone=${tz}&forecast_days=7`;
 
+  // באגמים ונהרות אין נתוני גלים — שולפים מזג אוויר בלבד
+  if (spot.type === "lake") {
+    const wRes = await fetch(weatherUrl);
+    if (!wRes.ok) throw new Error("API error");
+    weatherData = await wRes.json();
+    marineData = null;
+    return;
+  }
+
   const marineUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${spot.lat}&longitude=${spot.lon}` +
     `&hourly=wave_height,wave_direction,wave_period,sea_surface_temperature` +
     `&daily=wave_height_max,wave_direction_dominant,wave_period_max` +
@@ -69,7 +82,10 @@ async function fetchAll(spot) {
 // ===== חישוב ציון דיג (1–10) =====
 function fishingScore(waveMax, windMax, precip, spotType, pressureTrend) {
   let waveScore;
-  if (spotType === "marina") {
+  if (spotType === "lake") {
+    // באגם אין גלי ים — הרוח היא הגורם המרכזי
+    waveScore = 9;
+  } else if (spotType === "marina") {
     // המרינה מוגנת — גלים מפריעים פחות
     waveScore = waveMax > 2.5 ? 6 : 9;
   } else if (waveMax < 0.3) {
@@ -116,6 +132,28 @@ function buildRecommendations(spot, wave, wind, month, pressureTrend) {
   const recs = [];
   const isWinter = [11,12,1,2,3].includes(month);
   const isAutumn = [9,10,11,12].includes(month);
+  const isSummer = [5,6,7,8,9].includes(month);
+
+  // --- מים מתוקים: אגמים ונהרות ---
+  if (spot.type === "lake") {
+    if (wind < 15) {
+      recs.push(["🎈 תנאי מצוף מושלמים", "רוח חלשה = מצוף יציב וקריא. דיג קלאסי לאמנונים: להאכיל את הנקודה בתירס, מצוף עדין וקרס קטן."]);
+    } else if (wind >= 25) {
+      recs.push(["💨 רוח חזקה על המים", "קשה לקרוא מצוף היום. עדיף דיג תחתית עם משקולת שמחזיקה — קרפיונים ושפמנונים פחות מושפעים מהרוח."]);
+    } else {
+      recs.push(["🎈 מצוף בצד המוגן", "רוח בינונית — לחפש את הצד המוגן מהרוח של האגם; שם גם המזון נדחף ואיתו הדגים."]);
+    }
+    if (isSummer) {
+      recs.push(["🌅 אמנונים ברדודים", "בקיץ האמנונים ברדודים בבוקר ולפנות ערב. בצהריים הם יורדים לעומק — לדוג עמוק יותר או לנוח בצל."]);
+      recs.push(["🌙 לילה של שפמנונים", "לילות הקיץ החמים הם שיא עונת השפמנון — תחתית כבדה עם כבד עוף אחרי החשיכה."]);
+    }
+    if (pressureTrend < -2) {
+      recs.push(["📉 לחץ ברומטרי יורד", "לפני מערכת — הקרפיונים והשפמנונים נכנסים לבולמוס. זמן מצוין לצאת!"]);
+    }
+    recs.push(["🌅 שעות הזהב", "גם במים מתוקים: הזריחה והשקיעה הן שעות הפעילות החזקות."]);
+    recs.push(["📜 חוקי המים המתוקים", "דיג בכנרת מחייב רישיון דיג חובבים, ויש סגר רבייה באביב. במאגרים ואגמים — לדוג רק היכן שמותר."]);
+    return recs;
+  }
 
   if (wave > 2.2) {
     recs.push(["⚠️ ים סוער", "לא לעלות על שוברי גלים וסלעים. אם בכל זאת יוצאים — רק במרינה הפנימית המוגנת."]);
@@ -153,9 +191,12 @@ function buildRecommendations(spot, wave, wind, month, pressureTrend) {
 // ===== רינדור =====
 function renderLocationPicker() {
   const select = $("city-select");
-  select.innerHTML = REGIONS.map(r =>
-    `<option value="${r.city}"${r.city === currentRegion.city ? " selected" : ""}>📍 ${r.city}</option>`
-  ).join("");
+  const opt = r => `<option value="${r.city}"${r.city === currentRegion.city ? " selected" : ""}>📍 ${r.city}</option>`;
+  const seaRegions = REGIONS.filter(r => r.water !== "fresh");
+  const freshRegions = REGIONS.filter(r => r.water === "fresh");
+  select.innerHTML =
+    `<optgroup label="🌊 הים התיכון">${seaRegions.map(opt).join("")}</optgroup>` +
+    `<optgroup label="🏞️ מים מתוקים">${freshRegions.map(opt).join("")}</optgroup>`;
   select.onchange = () => {
     currentRegion = REGIONS.find(r => r.city === select.value);
     currentSpot = currentRegion.spots[0];
@@ -178,7 +219,8 @@ function render() {
   const now = new Date();
   const month = now.getMonth() + 1;
   const w = weatherData, m = marineData;
-  const cur = w.current, mcur = m.current;
+  const cur = w.current, mcur = m ? m.current : null;
+  const waveMaxToday = m ? m.daily.wave_height_max[0] : 0;
 
   // מגמת לחץ: השוואת לחץ נוכחי ללחץ לפני 6 שעות
   const hourIdx = w.hourly.time.findIndex(t => new Date(t) >= now);
@@ -187,7 +229,7 @@ function render() {
 
   // --- ציון היום ---
   const score = fishingScore(
-    m.daily.wave_height_max[0],
+    waveMaxToday,
     w.daily.wind_speed_10m_max[0],
     w.daily.precipitation_sum[0],
     currentSpot.type,
@@ -202,21 +244,27 @@ function render() {
   const [emoji, desc] = weatherEmoji(cur.weather_code);
   const conds = [
     [emoji, desc, "מזג אוויר"],
-    ["🌡️", `${Math.round(cur.temperature_2m)}°`, "טמפ' אוויר"],
-    ["🌊", `${mcur.wave_height.toFixed(1)} מ'`, `גלים · ${mcur.wave_period.toFixed(0)} שנ'`],
-    ["💧", `${Math.round(mcur.sea_surface_temperature)}°`, "טמפ' מים"],
+    ["🌡️", `${Math.round(cur.temperature_2m)}°`, "טמפ' אוויר"]
+  ];
+  if (mcur) {
+    conds.push(
+      ["🌊", `${mcur.wave_height.toFixed(1)} מ'`, `גלים · ${mcur.wave_period.toFixed(0)} שנ'`],
+      ["💧", `${Math.round(mcur.sea_surface_temperature)}°`, "טמפ' מים"]
+    );
+  }
+  conds.push(
     ["💨", `${Math.round(cur.wind_speed_10m)} קמ"ש`, `רוח ${windDirText(cur.wind_direction_10m)}`],
     ["🌬️", `${Math.round(cur.wind_gusts_10m)} קמ"ש`, "משבים"],
     ["🧭", `${Math.round(cur.surface_pressure)}`, `לחץ ${pressureTrend < -1 ? "יורד ↓" : pressureTrend > 1 ? "עולה ↑" : "יציב"}`],
     ["🌅", fmtTime(w.daily.sunrise[0]), "זריחה"],
     ["🌇", fmtTime(w.daily.sunset[0]), "שקיעה"]
-  ];
+  );
   $("conditions-now").innerHTML = conds.map(([ic, val, lbl]) =>
     `<div class="cond"><div class="icon">${ic}</div><div class="val">${val}</div><div class="lbl">${lbl}</div></div>`
   ).join("");
 
   // --- המלצות ---
-  const recs = buildRecommendations(currentSpot, m.daily.wave_height_max[0], w.daily.wind_speed_10m_max[0], month, pressureTrend);
+  const recs = buildRecommendations(currentSpot, waveMaxToday, w.daily.wind_speed_10m_max[0], month, pressureTrend);
   $("recommendations").innerHTML = recs.map(([title, body]) =>
     `<li><span class="rec-title">${title}:</span> ${body}</li>`
   ).join("");
@@ -225,13 +273,17 @@ function render() {
   const start = Math.max(hourIdx, 0);
   let hoursHtml = "";
   for (let i = start; i < Math.min(start + 24, w.hourly.time.length); i++) {
-    const mi = m.hourly.time.indexOf(w.hourly.time[i]);
-    const wv = mi >= 0 ? m.hourly.wave_height[mi] : null;
+    let waveRow = "";
+    if (m) {
+      const mi = m.hourly.time.indexOf(w.hourly.time[i]);
+      const wv = mi >= 0 ? m.hourly.wave_height[mi] : null;
+      waveRow = `<div class="dim">🌊 ${wv !== null ? wv.toFixed(1) : "–"}</div>`;
+    }
     hoursHtml += `<div class="hour-cell">
       <div class="h">${fmtTime(w.hourly.time[i])}</div>
       <div>${weatherEmoji(w.hourly.weather_code[i])[0]} ${Math.round(w.hourly.temperature_2m[i])}°</div>
       <div class="dim">💨 ${Math.round(w.hourly.wind_speed_10m[i])}</div>
-      <div class="dim">🌊 ${wv !== null ? wv.toFixed(1) : "–"}</div>
+      ${waveRow}
     </div>`;
   }
   $("hourly").innerHTML = hoursHtml;
@@ -241,18 +293,19 @@ function render() {
   for (let d = 0; d < w.daily.time.length; d++) {
     const date = new Date(w.daily.time[d] + "T12:00");
     const dayScore = fishingScore(
-      m.daily.wave_height_max[d],
+      m ? m.daily.wave_height_max[d] : 0,
       w.daily.wind_speed_10m_max[d],
       w.daily.precipitation_sum[d],
       currentSpot.type,
       0
     );
     const [de] = weatherEmoji(w.daily.weather_code[d]);
+    const waveLine = m ? `🌊 ${m.daily.wave_height_max[d].toFixed(1)} מ'<br>` : "";
     weekHtml += `<div class="day-card${d === 0 ? " today" : ""}">
       <div class="dname">${d === 0 ? "היום" : DAY_NAMES[date.getDay()]}</div>
       <div class="demoji">${de}</div>
       <div class="dtemp">${Math.round(w.daily.temperature_2m_max[d])}° / ${Math.round(w.daily.temperature_2m_min[d])}°</div>
-      <div class="ddetail">🌊 ${m.daily.wave_height_max[d].toFixed(1)} מ'<br>💨 ${Math.round(w.daily.wind_speed_10m_max[d])} קמ"ש</div>
+      <div class="ddetail">${waveLine}💨 ${Math.round(w.daily.wind_speed_10m_max[d])} קמ"ש</div>
       <div class="day-score ${scoreClass(dayScore)}">${dayScore}/10</div>
     </div>`;
   }
@@ -280,6 +333,15 @@ function render() {
 // ===== מדריך שיטות דיג ובובות =====
 // מחזיר true אם השיטה מתאימה לתנאים הנוכחיים בנקודה שנבחרה
 function methodRecommended(method, waveMax, windMax, month, spotType) {
+  if (spotType === "lake") {
+    switch (method.id) {
+      case "float":    return windMax < 25;                       // המצוף — שיטת האגם המרכזית
+      case "bottom":   return true;                               // קרפיונים ושפמנונים
+      case "spinning": return windMax < 30;                       // ביניות ושפמנונים על לורים
+      case "trolling": return windMax < 20;                       // ז'רזור מקיאק בכנרת
+      default:         return false;
+    }
+  }
   switch (method.id) {
     case "surfcasting": return spotType === "beach" && waveMax >= 0.4 && waveMax <= 1.6 && windMax < 35;
     case "spinning":    return waveMax <= 1.8 && windMax < 35;
@@ -305,11 +367,12 @@ function lureRecommended(lure, month, waveMax) {
 
 function renderGuide() {
   const month = new Date().getMonth() + 1;
-  const waveMax = marineData.daily.wave_height_max[0];
+  const waveMax = marineData ? marineData.daily.wave_height_max[0] : 0;
   const windMax = weatherData.daily.wind_speed_10m_max[0];
 
-  $("guide-hint").textContent =
-    'שיטות עם סימון "✓ מתאים עכשיו" נבחרו לפי הגלים, הרוח והעונה בנקודה שבחרת. שיטות סירה (🚤) דורשות יציאה מהמרינה.';
+  $("guide-hint").textContent = isFreshwater()
+    ? 'שיטות עם סימון "✓ מתאים עכשיו" נבחרו לפי הרוח והעונה באגם. במים מתוקים המצוף והתחתית הם המלכים.'
+    : 'שיטות עם סימון "✓ מתאים עכשיו" נבחרו לפי הגלים, הרוח והעונה בנקודה שבחרת. שיטות סירה (🚤) דורשות יציאה מהמרינה.';
 
   $("methods-panel").innerHTML = METHODS.map(m => {
     const rec = methodRecommended(m, waveMax, windMax, month, currentSpot.type);
@@ -370,11 +433,14 @@ async function askAI() {
     .filter(f => f.spots.includes(currentSpot.type) && f.months.includes(month))
     .map(f => f.name).join(", ");
 
+  const waveLine = m
+    ? `גלים עכשיו: ${m.current.wave_height} מ', תדירות ${m.current.wave_period} שנ', מקסימום היום: ${m.daily.wave_height_max[0]} מ'\nטמפ' מים: ${Math.round(m.current.sea_surface_temperature)}°\n`
+    : "מקום דיג במים מתוקים (אגם/נהר) — אין נתוני גלים\n";
   const conditions =
     `מיקום: ${currentRegion.city} — ${currentSpot.name} (${currentSpot.note})\n` +
-    `גלים עכשיו: ${m.current.wave_height} מ', תדירות ${m.current.wave_period} שנ', מקסימום היום: ${m.daily.wave_height_max[0]} מ'\n` +
+    waveLine +
     `רוח: ${Math.round(w.current.wind_speed_10m)} קמ"ש ${windDirText(w.current.wind_direction_10m)}, משבים ${Math.round(w.current.wind_gusts_10m)}\n` +
-    `טמפ' אוויר: ${Math.round(w.current.temperature_2m)}°, טמפ' מים: ${Math.round(m.current.sea_surface_temperature)}°\n` +
+    `טמפ' אוויר: ${Math.round(w.current.temperature_2m)}°\n` +
     `לחץ: ${Math.round(w.current.surface_pressure)} hPa\n` +
     `זריחה: ${fmtTime(w.daily.sunrise[0])}, שקיעה: ${fmtTime(w.daily.sunset[0])}\n` +
     `דגים בעונה בנקודה זו: ${inSeason}`;

@@ -1,5 +1,5 @@
 // Service Worker — עבודה לא מקוונת + התקנה כאפליקציה
-const CACHE_NAME = "fishing-israel-v3";
+const CACHE_NAME = "fishing-israel-v4";
 const APP_SHELL = [
   "./",
   "./index.html",
