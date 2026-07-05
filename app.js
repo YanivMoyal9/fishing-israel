@@ -56,7 +56,10 @@ async function fetchAll(spot) {
     `&hourly=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,precipitation,weather_code` +
     `&daily=temperature_2m_max,temperature_2m_min,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,precipitation_sum,weather_code,sunrise,sunset` +
     `&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,weather_code` +
-    `&timezone=${tz}&forecast_days=7`;
+    `&timezone=${tz}&forecast_days=7` +
+    // בנקודות ים: בחירת תא רשת ימי — רוח מדויקת יותר על קו החוף
+    // (אומת מול תחנות מדידה של השירות המטאורולוגי בת"א ובחדרה)
+    (spot.type === "lake" ? "" : "&cell_selection=sea");
 
   // באגמים ונהרות אין נתוני גלים — שולפים מזג אוויר בלבד
   if (spot.type === "lake") {
@@ -346,7 +349,7 @@ async function fetchRanking() {
   const lons = cities.map(c => c.lon).join(",");
   const tz = "Asia/Jerusalem";
   const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
-    `&hourly=wind_speed_10m&daily=wind_speed_10m_max,precipitation_sum&timezone=${tz}&forecast_days=7`;
+    `&hourly=wind_speed_10m&daily=wind_speed_10m_max,precipitation_sum&timezone=${tz}&forecast_days=7&cell_selection=sea`;
   const mUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lats}&longitude=${lons}` +
     `&hourly=wave_height&daily=wave_height_max&timezone=${tz}&forecast_days=7`;
   const [wRes, mRes] = await Promise.all([fetch(wUrl), fetch(mUrl)]);
