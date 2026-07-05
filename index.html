@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>דיג אשדוד — תחזית ומידע לדייג</title>
+  <meta name="theme-color" content="#0b1d2e">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+</head>
+<body>
+  <header class="header">
+    <h1>🎣 דיג אשדוד</h1>
+    <p class="subtitle">תחזית ים ומזג אוויר אמיתית + המלצות דיג — מתעדכן מ־Open-Meteo</p>
+    <p id="last-updated" class="updated"></p>
+  </header>
+
+  <nav class="spot-tabs" id="spot-tabs"></nav>
+
+  <main id="main">
+    <div id="loading" class="loading">
+      <div class="spinner"></div>
+      <p>טוען נתוני ים ומזג אוויר...</p>
+    </div>
+
+    <div id="error" class="error hidden">
+      <p>⚠️ לא הצלחנו לטעון את הנתונים. בדקו את חיבור האינטרנט ונסו לרענן.</p>
+      <button onclick="init()">נסה שוב</button>
+    </div>
+
+    <div id="content" class="hidden">
+
+      <section class="card score-card">
+        <div class="score-main">
+          <div class="score-circle" id="score-circle">
+            <span id="score-value">–</span>
+            <small>/ 10</small>
+          </div>
+          <div>
+            <h2>ציון דיג להיום</h2>
+            <p id="score-label" class="score-label"></p>
+            <p id="spot-note" class="spot-note"></p>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>🌊 תנאים עכשיו</h2>
+        <div class="conditions-grid" id="conditions-now"></div>
+      </section>
+
+      <section class="card">
+        <h2>🎯 המלצות דיג לתנאים הנוכחיים</h2>
+        <ul id="recommendations" class="recs"></ul>
+      </section>
+
+      <section class="card">
+        <h2>🕐 24 השעות הקרובות</h2>
+        <div class="hourly-scroll" id="hourly"></div>
+      </section>
+
+      <section class="card">
+        <h2>📅 תחזית שבועית</h2>
+        <div class="weekly-grid" id="weekly"></div>
+      </section>
+
+      <section class="card">
+        <h2>🐟 דגים בעונה — <span id="season-name"></span></h2>
+        <p class="season-hint">מבוסס על עונתיות ידועה בחופי הים התיכון של ישראל. נוכחות דגים בפועל משתנה מיום ליום.</p>
+        <div class="fish-grid" id="fish-in-season"></div>
+        <details class="off-season">
+          <summary>דגים נוספים (לא בשיא העונה)</summary>
+          <div class="fish-grid" id="fish-off-season"></div>
+        </details>
+      </section>
+
+      <section class="card hidden" id="ai-card">
+        <h2>🤖 עצת דייג מ-AI</h2>
+        <p class="season-hint">ניתוח חכם של התנאים הנוכחיים בנקודה שבחרת — איפה, מתי ועם מה לדוג היום.</p>
+        <button id="ai-button" class="primary-btn">קבל עצה לתנאים של היום</button>
+        <div id="ai-answer" class="ai-answer hidden"></div>
+      </section>
+
+      <section class="card">
+        <h2>📓 יומן תפיסות</h2>
+        <p class="season-hint" id="log-storage-note"></p>
+        <form id="catch-form" class="catch-form">
+          <div class="form-row">
+            <select id="catch-fish" required></select>
+            <input type="number" id="catch-weight" placeholder='משקל (ק"ג)' step="0.1" min="0">
+            <select id="catch-method">
+              <option value="">שיטת דיג</option>
+              <option>סרפקסטינג (חכות מהחוף)</option>
+              <option>ספינינג (לורים)</option>
+              <option>דיג מצוף</option>
+              <option>דיג תחתית מהמזח</option>
+              <option>ג'יגינג / LRF</option>
+              <option>פיתיון חי</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <input type="text" id="catch-notes" placeholder="הערות (פיתיון, שעה, מיקום מדויק...)">
+            <button type="submit" class="primary-btn">➕ הוסף תפיסה</button>
+          </div>
+        </form>
+        <div id="catch-list" class="catch-list"></div>
+      </section>
+
+      <section class="card warn-card">
+        <h2>⚠️ בטיחות וחוק</h2>
+        <ul class="warn-list">
+          <li><strong>אבו נפחא (דג הבלון)</strong> — רעיל וקטלני לאכילה! אם עלה על החכה, לשחרר בזהירות בלי לגעת בפה.</li>
+          <li><strong>עקרבנון / דג ארס</strong> — קוצים ארסיים. לא לגעת בקוצים הגביים.</li>
+          <li>דיג בשטח נמל אשדוד עצמו אסור — מותר רק באזורים הפתוחים לציבור מחוץ לגדר הנמל.</li>
+          <li>יש לבדוק את תקנות רשות הדיג: גדלים מינימליים, מכסות ועונות רבייה אסורות. <a href="https://www.gov.il/he/departments/fishery_and_aquaculture_division" target="_blank">אגף הדיג במשרד החקלאות</a></li>
+          <li>בים גלי (מעל 1.5 מ') — לא לעלות על שוברי גלים וסלעים רטובים.</li>
+        </ul>
+      </section>
+
+    </div>
+  </main>
+
+  <footer class="footer">
+    <p>נתוני מזג אוויר וים: <a href="https://open-meteo.com/" target="_blank">Open-Meteo</a> (חינמי, מתעדכן כל שעה). המלצות הדיג הן כלליות ואינן תחליף לשיקול דעת בשטח.</p>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js");
+    }
+  </script>
+</body>
+</html>
