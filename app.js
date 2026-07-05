@@ -330,6 +330,157 @@ function render() {
   $("last-updated").textContent = `עודכן: ${now.toLocaleString("he-IL", { dateStyle: "short", timeStyle: "short" })} · ${currentRegion.city} · ${currentSpot.name}`;
 }
 
+// ===== דירוג החופים — השוואת כל מישור החוף =====
+let rankingData = null;   // נשלף פעם אחת לכל טעינת דף (שתי בקשות מרובות-נקודות)
+
+function rankingCities() {
+  return REGIONS.filter(r => r.water !== "fresh").map(r => {
+    const spot = r.spots.find(s => s.type === "beach") || r.spots[0];
+    return { city: r.city, lat: spot.lat, lon: spot.lon };
+  });
+}
+
+async function fetchRanking() {
+  const cities = rankingCities();
+  const lats = cities.map(c => c.lat).join(",");
+  const lons = cities.map(c => c.lon).join(",");
+  const tz = "Asia/Jerusalem";
+  const wUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}` +
+    `&hourly=wind_speed_10m&daily=wind_speed_10m_max,precipitation_sum&timezone=${tz}&forecast_days=7`;
+  const mUrl = `https://marine-api.open-meteo.com/v1/marine?latitude=${lats}&longitude=${lons}` +
+    `&hourly=wave_height&daily=wave_height_max&timezone=${tz}&forecast_days=7`;
+  const [wRes, mRes] = await Promise.all([fetch(wUrl), fetch(mUrl)]);
+  if (!wRes.ok || !mRes.ok) throw new Error("ranking API error");
+  let weather = await wRes.json();
+  let marine = await mRes.json();
+  if (!Array.isArray(weather)) weather = [weather];
+  if (!Array.isArray(marine)) marine = [marine];
+  return { cities, weather, marine };
+}
+
+// ציון שעתי מפושט (גלים + רוח) לאיתור חלון הזמן הטוב ביום
+function hourMiniScore(wave, wind) {
+  let ws;
+  if (wave < 0.3) ws = 7;
+  else if (wave <= 1.4) ws = 10;
+  else if (wave <= 2.0) ws = 6;
+  else if (wave <= 2.6) ws = 3;
+  else ws = 1;
+  let nd;
+  if (wind < 15) nd = 10;
+  else if (wind < 25) nd = 8;
+  else if (wind < 35) nd = 5;
+  else nd = 2;
+  return ws * 0.55 + nd * 0.45;
+}
+
+// מוצא את חלון 3 השעות הטוב ביותר היום (בין 05:00 ל-22:00)
+function bestHoursToday(wCity, mCity) {
+  let best = { score: -1, start: 6 };
+  for (let h = 5; h <= 19; h++) {
+    let sum = 0;
+    for (let k = h; k < h + 3; k++) {
+      sum += hourMiniScore(mCity.hourly.wave_height[k] ?? 0, wCity.hourly.wind_speed_10m[k] ?? 0);
+    }
+    const avg = sum / 3;
+    if (avg > best.score) best = { score: avg, start: h };
+  }
+  const pad = n => String(n).padStart(2, "0");
+  return `${pad(best.start)}:00–${pad(best.start + 3)}:00`;
+}
+
+function cityDayScore(i, d) {
+  const w = rankingData.weather[i], m = rankingData.marine[i];
+  return fishingScore(
+    m.daily.wave_height_max[d],
+    w.daily.wind_speed_10m_max[d],
+    w.daily.precipitation_sum[d],
+    "beach",
+    0
+  );
+}
+
+function jumpToCity(cityName) {
+  const region = REGIONS.find(r => r.city === cityName);
+  if (!region) return;
+  currentRegion = region;
+  currentSpot = region.spots.find(s => s.type === "beach") || region.spots[0];
+  saveLocation();
+  init();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+function renderRanking() {
+  if (!rankingData) return;
+  const { cities, weather, marine } = rankingData;
+
+  // --- דירוג היום ---
+  const today = cities.map((c, i) => ({
+    city: c.city,
+    score: cityDayScore(i, 0),
+    wave: marine[i].daily.wave_height_max[0],
+    wind: weather[i].daily.wind_speed_10m_max[0],
+    hours: bestHoursToday(weather[i], marine[i])
+  })).sort((a, b) => b.score - a.score);
+
+  const medal = idx => idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : `${idx + 1}`;
+  $("ranking-today").innerHTML = today.map((r, idx) => `
+    <div class="rank-row${idx === 0 ? " top" : ""}${idx === today.length - 1 ? " worst" : ""}" onclick="jumpToCity('${r.city}')">
+      <div class="rank-pos">${medal(idx)}</div>
+      <div class="rank-city">${r.city}${idx === today.length - 1 ? " <small>⚠️ הכי פחות מומלץ היום</small>" : ""}
+        <small>🌊 ${r.wave.toFixed(1)} מ' · 💨 ${Math.round(r.wind)} קמ"ש</small>
+      </div>
+      <div class="rank-hours">⏰ ${r.hours}</div>
+      <div class="day-score ${scoreClass(r.score)}">${r.score}/10</div>
+    </div>`).join("");
+
+  // --- טבלת השבוע ---
+  const days = weather[0].daily.time.map((t, d) =>
+    d === 0 ? "היום" : DAY_NAMES[new Date(t + "T12:00").getDay()]
+  );
+  const rows = cities.map((c, i) => ({
+    city: c.city,
+    scores: days.map((_, d) => cityDayScore(i, d))
+  }));
+  rows.sort((a, b) =>
+    b.scores.reduce((s, v) => s + v, 0) - a.scores.reduce((s, v) => s + v, 0)
+  );
+  // הציון הגבוה בכל יום — מסומן בטבעת
+  const dayBest = days.map((_, d) => Math.max(...rows.map(r => r.scores[d])));
+
+  $("ranking-week").innerHTML = `<div class="rank-week-wrap"><table class="rank-week">
+    <tr><th>חוף</th>${days.map(d => `<th>${d}</th>`).join("")}</tr>
+    ${rows.map(r => `<tr>
+      <td onclick="jumpToCity('${r.city}')" style="cursor:pointer">${r.city}</td>
+      ${r.scores.map((s, d) =>
+        `<td><span class="rank-cell ${scoreClass(s)}${s === dayBest[d] ? " day-best" : ""}">${s}</span></td>`
+      ).join("")}
+    </tr>`).join("")}
+  </table></div>
+  <p class="season-hint" style="margin-top:8px">⭕ טבעת = החוף הטוב ביותר לאותו יום. השורות ממוינות לפי ממוצע שבועי.</p>`;
+}
+
+async function loadRanking() {
+  try {
+    if (!rankingData) rankingData = await fetchRanking();
+    renderRanking();
+  } catch (e) {
+    console.error("ranking failed", e);
+    $("ranking-today").innerHTML = '<p class="catch-empty">לא הצלחנו לטעון את הדירוג כרגע.</p>';
+  }
+}
+
+function setupRankingTabs() {
+  const show = which => {
+    $("ranking-today").classList.toggle("hidden", which !== "today");
+    $("ranking-week").classList.toggle("hidden", which !== "week");
+    $("rank-tab-today").classList.toggle("active", which === "today");
+    $("rank-tab-week").classList.toggle("active", which === "week");
+  };
+  $("rank-tab-today").onclick = () => show("today");
+  $("rank-tab-week").onclick = () => show("week");
+}
+
 // ===== מדריך שיטות דיג ובובות =====
 // מחזיר true אם השיטה מתאימה לתנאים הנוכחיים בנקודה שנבחרה
 function methodRecommended(method, waveMax, windMax, month, spotType) {
@@ -599,7 +750,9 @@ async function init() {
       $("ai-button").onclick = askAI;
       setupCatchForm();
       setupGuideTabs();
+      setupRankingTabs();
     }
+    loadRanking();   // לא חוסם — נטען ברקע פעם אחת ומרונדר כשמוכן
     renderGuide();
     renderCatchLog();
     $("loading").classList.add("hidden");

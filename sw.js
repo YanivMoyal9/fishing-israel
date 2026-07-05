@@ -1,6 +1,6 @@
 // Service Worker — גרסה חדשה נטענת מיד, המטמון משמש רק במצב לא מקוון
 // APP_VERSION מוגדר גם ב-data.js — לעדכן את שניהם יחד בכל שינוי!
-const VERSION = "1.2.0";
+const VERSION = "1.3.0";
 const CACHE_NAME = `fishing-israel-${VERSION}`;
 const APP_SHELL = [
   "./",
