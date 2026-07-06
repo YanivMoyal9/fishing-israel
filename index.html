@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
   <meta charset="UTF-8">
@@ -35,7 +35,7 @@
 
     <div id="content" class="hidden">
 
-      <section class="card score-card">
+      <section class="card score-card" data-view="home">
         <div class="score-main">
           <div class="score-circle" id="score-circle">
             <span id="score-value">–</span>
@@ -49,12 +49,12 @@
         </div>
       </section>
 
-      <section class="card">
+      <section class="card" data-view="home">
         <h2>🌊 תנאים עכשיו</h2>
         <div class="conditions-grid" id="conditions-now"></div>
       </section>
 
-      <section class="card" id="ranking-card">
+      <section class="card" data-view="forecast" id="ranking-card">
         <h2>🏆 דירוג החופים — איפה הכי כדאי לדוג?</h2>
         <p class="season-hint">השוואה חיה של כל חופי הים התיכון לפי גלים, רוח וגשם. לחיצה על חוף תעבור אליו.</p>
         <div class="guide-tabs">
@@ -65,22 +65,22 @@
         <div id="ranking-week" class="hidden"></div>
       </section>
 
-      <section class="card">
+      <section class="card" data-view="home">
         <h2>🎯 המלצות דיג לתנאים הנוכחיים</h2>
         <ul id="recommendations" class="recs"></ul>
       </section>
 
-      <section class="card">
+      <section class="card" data-view="home">
         <h2>🕐 24 השעות הקרובות</h2>
         <div class="hourly-scroll" id="hourly"></div>
       </section>
 
-      <section class="card">
+      <section class="card" data-view="forecast">
         <h2>📅 תחזית שבועית</h2>
         <div class="weekly-grid" id="weekly"></div>
       </section>
 
-      <section class="card">
+      <section class="card" data-view="guide">
         <h2>🐟 דגים בעונה — <span id="season-name"></span></h2>
         <p class="season-hint">מבוסס על עונתיות ידועה בחופי הים התיכון של ישראל. נוכחות דגים בפועל משתנה מיום ליום.</p>
         <div class="fish-grid" id="fish-in-season"></div>
@@ -90,7 +90,7 @@
         </details>
       </section>
 
-      <section class="card">
+      <section class="card" data-view="guide">
         <h2>🎣 מדריך שיטות דיג ופיתיונות</h2>
         <div class="guide-tabs">
           <button id="tab-methods" class="guide-tab active">שיטות דיג</button>
@@ -101,14 +101,14 @@
         <div id="lures-panel" class="method-grid hidden"></div>
       </section>
 
-      <section class="card hidden" id="ai-card">
+      <section class="card hidden" data-view="home" id="ai-card">
         <h2>🤖 עצת דייג מ-AI</h2>
         <p class="season-hint">ניתוח חכם של התנאים הנוכחיים בנקודה שבחרת — איפה, מתי ועם מה לדוג היום.</p>
         <button id="ai-button" class="primary-btn">קבל עצה לתנאים של היום</button>
         <div id="ai-answer" class="ai-answer hidden"></div>
       </section>
 
-      <section class="card">
+      <section class="card" data-view="log">
         <h2>📓 יומן תפיסות</h2>
         <p class="season-hint" id="log-storage-note"></p>
         <form id="catch-form" class="catch-form">
@@ -135,7 +135,7 @@
         <div id="catch-list" class="catch-list"></div>
       </section>
 
-      <section class="card warn-card">
+      <section class="card warn-card" data-view="guide">
         <h2>⚠️ בטיחות וחוק</h2>
         <ul class="warn-list">
           <li><strong>אבו נפחא (דג הבלון)</strong> — רעיל וקטלני לאכילה! אם עלה על החכה, לשחרר בזהירות בלי לגעת בפה.</li>
@@ -154,6 +154,13 @@
     <p>נתוני מזג אוויר וים: <a href="https://open-meteo.com/" target="_blank">Open-Meteo</a> (חינמי, מתעדכן כל שעה). המלצות הדיג הן כלליות ואינן תחליף לשיקול דעת בשטח.</p>
     <p>גרסה <span id="app-version">–</span></p>
   </footer>
+
+  <nav class="bottom-nav" aria-label="ניווט ראשי">
+    <button data-view="home" class="active" aria-label="היום"><span class="nav-ico">🏠</span>היום</button>
+    <button data-view="forecast" aria-label="תחזית ודירוג"><span class="nav-ico">📅</span>תחזית</button>
+    <button data-view="guide" aria-label="מדריך דיג"><span class="nav-ico">🎣</span>מדריך</button>
+    <button data-view="log" aria-label="יומן תפיסות"><span class="nav-ico">📓</span>יומן</button>
+  </nav>
 
   <script src="data.js"></script>
   <script src="config.js"></script>

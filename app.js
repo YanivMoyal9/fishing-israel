@@ -238,6 +238,29 @@ function buildRecommendations(spot, wave, wind, month, pressureTrend) {
   return recs;
 }
 
+// ===== טאבים ראשיים (ניווט תחתון) =====
+const VIEW_KEY = "fishing-view";
+
+function setView(view) {
+  document.querySelectorAll("#content > section").forEach(s => {
+    s.classList.toggle("view-hidden", s.dataset.view !== view);
+  });
+  document.querySelectorAll(".bottom-nav button").forEach(b => {
+    b.classList.toggle("active", b.dataset.view === view);
+  });
+  // בורר המיקום רלוונטי לתחזיות ולמדריך — מוסתר ביומן
+  document.querySelector(".location-picker").style.display = view === "log" ? "none" : "";
+  localStorage.setItem(VIEW_KEY, view);
+  window.scrollTo({ top: 0 });
+}
+
+function setupBottomNav() {
+  document.querySelectorAll(".bottom-nav button").forEach(b => {
+    b.onclick = () => setView(b.dataset.view);
+  });
+  setView(localStorage.getItem(VIEW_KEY) || "home");
+}
+
 // ===== רינדור =====
 function renderLocationPicker() {
   const select = $("city-select");
@@ -805,6 +828,7 @@ async function init() {
       setupCatchForm();
       setupGuideTabs();
       setupRankingTabs();
+      setupBottomNav();
       // עדכניות: רענון נתונים בחזרה לאפליקציה + כל 20 דקות ברקע
       document.addEventListener("visibilitychange", () => {
         if (!document.hidden) silentRefresh();
