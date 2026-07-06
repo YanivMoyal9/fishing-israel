@@ -17,6 +17,8 @@ function restoreLocation() {
 let { region: currentRegion, spot: currentSpot } = restoreLocation();
 let weatherData = null;
 let marineData = null;
+let lastFetchTime = 0;        // מתי נשלפו נתוני התחזית לאחרונה
+let rankingFetchTime = 0;     // מתי נשלף הדירוג לאחרונה
 
 function saveLocation() {
   localStorage.setItem(LOC_KEY, JSON.stringify({ city: currentRegion.city, spotId: currentSpot.id }));
@@ -80,6 +82,27 @@ async function fetchAll(spot) {
   if (!wRes.ok || !mRes.ok) throw new Error("API error");
   weatherData = await wRes.json();
   marineData = await mRes.json();
+}
+
+// רענון שקט: מושך נתונים טריים ומרנדר מחדש בלי מסך טעינה.
+// כך ההמלצות, הציון והדירוג נשארים מעודכנים גם כשהאפליקציה פתוחה שעות.
+const REFRESH_AFTER_MS = 20 * 60 * 1000;         // תחזית: כל 20 דקות
+const RANKING_REFRESH_AFTER_MS = 60 * 60 * 1000; // דירוג: כל שעה
+
+async function silentRefresh(force = false) {
+  if (!force && Date.now() - lastFetchTime < REFRESH_AFTER_MS) return;
+  try {
+    await fetchAll(currentSpot);
+    lastFetchTime = Date.now();
+    render();
+    renderGuide();
+    if (Date.now() - rankingFetchTime > RANKING_REFRESH_AFTER_MS) {
+      rankingData = null;   // ירונדר מחדש עם נתונים טריים
+    }
+    loadRanking();
+  } catch (e) {
+    console.error("silent refresh failed — keeping current data", e);
+  }
 }
 
 // ===== חישוב ציון דיג (1–10) =====
@@ -465,7 +488,10 @@ function renderRanking() {
 
 async function loadRanking() {
   try {
-    if (!rankingData) rankingData = await fetchRanking();
+    if (!rankingData) {
+      rankingData = await fetchRanking();
+      rankingFetchTime = Date.now();
+    }
     renderRanking();
   } catch (e) {
     console.error("ranking failed", e);
@@ -743,6 +769,7 @@ async function init() {
   $("content").classList.add("hidden");
   try {
     await fetchAll(currentSpot);
+    lastFetchTime = Date.now();
     render();
     if (aiConfigured()) {
       $("ai-card").classList.remove("hidden");
@@ -754,6 +781,11 @@ async function init() {
       setupCatchForm();
       setupGuideTabs();
       setupRankingTabs();
+      // עדכניות: רענון נתונים בחזרה לאפליקציה + כל 20 דקות ברקע
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) silentRefresh();
+      });
+      setInterval(() => silentRefresh(), REFRESH_AFTER_MS);
     }
     loadRanking();   // לא חוסם — נטען ברקע פעם אחת ומרונדר כשמוכן
     renderGuide();
